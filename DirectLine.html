@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Teams v2 SDK)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Teams v2 SDK1)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -93,20 +93,15 @@
     <script>
         const { app } = microsoftTeams;
 
-        // -------------------------
-        // Initialize Teams SDK
-        --------------------------
-            async function initTeams() {
-                await app.initialize();
-                await app.notifyAppLoaded();
-                await app.notifySuccess();
-                console.log("Teams SDK initialized");
-            }
+
+        async function initTeams() {
+            await app.initialize();
+            await app.notifyAppLoaded();
+            await app.notifySuccess();
+            console.log("Teams SDK initialized");
+        }
         initTeams();
 
-        // -------------------------
-        // DIRECT LINE BOT CONFIG
-        --------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
         const chat = document.getElementById("chat");
@@ -151,53 +146,51 @@
             }).subscribe();
         }
 
-        // -------------------------
-        // PURE JS AUDIO CAPTURE (navigator.getUserMedia)
-        --------------------------
-            async function recordAudio() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                    const mediaRecorder = new MediaRecorder(stream);
-                    let chunks = [];
+        async function recordAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+                const mediaRecorder = new MediaRecorder(stream);
+                let chunks = [];
 
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(chunks, { type: "audio/webm" });
+                mediaRecorder.ondataavailable = e => chunks.push(e.data);
 
-                        addMessage("bot", "🎧 Processing audio...");
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: "audio/webm" });
 
-                        // Send to Whisper
-                        const form = new FormData();
-                        form.append("file", blob, "audio.webm");
-                        form.append("model", "whisper-1");
+                    addMessage("bot", "🎧 Processing audio...");
 
-                        const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                            method: "POST",
-                            headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
-                            body: form
-                        });
+                    // Send to Whisper
+                    const form = new FormData();
+                    form.append("file", blob, "audio.webm");
+                    form.append("model", "whisper-1");
 
-                        const data = await resp.json();
+                    const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                        method: "POST",
+                        headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
+                        body: form
+                    });
 
-                        if (data.text) sendToBot(data.text);
-                        else addMessage("bot", "❌ Could not transcribe audio.");
-                    };
+                    const data = await resp.json();
 
-                    mediaRecorder.start();
+                    if (data.text) sendToBot(data.text);
+                    else addMessage("bot", "❌ Could not transcribe audio.");
+                };
 
-                    // Stop after 4 seconds
-                    setTimeout(() => {
-                        mediaRecorder.stop();
-                        stream.getTracks().forEach(t => t.stop());
-                    }, 4000);
+                mediaRecorder.start();
 
-                } catch (err) {
-                    console.error(err);
-                    addMessage("bot", "❌ Microphone denied or unavailable.");
-                }
+                // Stop after 4 seconds
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(t => t.stop());
+                }, 4000);
+
+            } catch (err) {
+                console.error(err);
+                addMessage("bot", "❌ Microphone denied or unavailable.");
             }
+        }
 
         document.getElementById("mic").onclick = recordAudio;
 
