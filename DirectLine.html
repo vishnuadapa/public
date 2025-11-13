@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Teams v2 SDK1)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Teams v2 SDK2)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -91,9 +91,11 @@
     </div>
 
     <script>
-        const { app } = microsoftTeams;
+        const { app, media } = microsoftTeams;
 
-
+        // -------------------------------------------------------
+        // INITIALIZE TEAMS
+        // -------------------------------------------------------
         async function initTeams() {
             await app.initialize();
             await app.notifyAppLoaded();
@@ -102,6 +104,9 @@
         }
         initTeams();
 
+        // -------------------------------------------------------
+        // DIRECT LINE BOT CONFIG
+        // -------------------------------------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
         const chat = document.getElementById("chat");
@@ -146,53 +151,63 @@
             }).subscribe();
         }
 
+        // -------------------------------------------------------
+        // MICROPHONE CAPTURE FOR TEAMS (selectMedia API)
+        // -------------------------------------------------------
+        async function recordAudioTeams() {
+            media.selectMedia(
+                {
+                    mediaType: media.MediaType.Audio,
+                    maxMediaCount: 1
+                },
+                async (err, attachments) => {
+                    if (err) {
+                        addMessage("bot", "❌ Mic Error: " + err.errorCode + " - " + (err.message || ""));
+                        return;
+                    }
 
-        async function recordAudio() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    if (!attachments || attachments.length === 0) {
+                        addMessage("bot", "❌ No audio captured.");
+                        return;
+                    }
 
-                const mediaRecorder = new MediaRecorder(stream);
-                let chunks = [];
+                    // Teams returns base64 audio
+                    const audio = attachments[0];
+                    const base64 = audio.preview;
+                    const mime = audio.mimeType;
 
-                mediaRecorder.ondataavailable = e => chunks.push(e.data);
-
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(chunks, { type: "audio/webm" });
+                    // Convert base64 → Blob
+                    const binary = atob(base64);
+                    const array = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    const blob = new Blob([array], { type: mime });
 
                     addMessage("bot", "🎧 Processing audio...");
 
-                    // Send to Whisper
+                    // Whisper API
                     const form = new FormData();
-                    form.append("file", blob, "audio.webm");
+                    form.append("file", blob, "audio.wav");
                     form.append("model", "whisper-1");
 
-                    const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                        method: "POST",
-                        headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
-                        body: form
-                    });
+                    addMessage("bot", " Audio ready to send to Whisper API");
 
-                    const data = await resp.json();
+                    //const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                    //    method: "POST",
+                    //    headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
+                    //    body: form
+                    //});
 
-                    if (data.text) sendToBot(data.text);
-                    else addMessage("bot", "❌ Could not transcribe audio.");
-                };
+                    //const data = await resp.json();
 
-                mediaRecorder.start();
-
-                // Stop after 4 seconds
-                setTimeout(() => {
-                    mediaRecorder.stop();
-                    stream.getTracks().forEach(t => t.stop());
-                }, 4000);
-
-            } catch (err) {
-                console.error(err);
-                addMessage("bot", "❌ Microphone denied or unavailable.");
-            }
+                    //if (data.text) sendToBot(data.text);
+                    //else addMessage("bot", "❌ Unable to transcribe audio.");
+                }
+            );
         }
 
-        document.getElementById("mic").onclick = recordAudio;
+        document.getElementById("mic").onclick = recordAudioTeams;
 
         document.getElementById("send").onclick = () => {
             const text = document.getElementById("input").value.trim();
