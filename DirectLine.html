@@ -82,7 +82,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (1)</h2>
+    <h2>🎤 Vishnu Voice Copilot (2)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -139,6 +139,54 @@
             }).subscribe();
         }
 
+        function captureMedia(callback) {
+            microsoftTeams.media.selectMedia(
+                {
+                    mediaType: microsoftTeams.media.MediaType.Audio,
+                    maxMediaCount: 1
+                },
+                (error, attachments) => {
+
+                    if (error) {
+                        alert("ErrorCode: " + error.errorCode + " " + (error.message || ""));
+                        return;
+                    }
+
+                    if (!attachments || attachments.length === 0) {
+                        alert("No audio captured.");
+                        return;
+                    }
+
+                    // First audio result
+                    const audio = attachments[0];
+
+                    // Base64 string returned by Teams
+                    const base64 = audio.preview;
+                    const mimeType = audio.mimeType;
+
+                    // Convert base64 → Blob
+                    const blob = base64ToBlob(base64, mimeType);
+
+                    // Return blob via callback
+                    if (callback) callback(blob);
+                }
+            );
+        }
+
+        // Helper: Convert base64 -> Blob
+        function base64ToBlob(base64, mime) {
+            const binary = atob(base64);
+            const len = binary.length;
+            const buffer = new Uint8Array(len);
+
+            for (let i = 0; i < len; i++) {
+                buffer[i] = binary.charCodeAt(i);
+            }
+
+            return new Blob([buffer], { type: mime });
+        }
+
+
         // ========================
         // TEAMS MICROPHONE API
         // ========================
@@ -146,26 +194,21 @@
             try {
                 // Ask Teams to pick mic
 
-                const result = await media.captureMedia({ audio: true, maxDuration: 5000 });
-                const blob = result.audio[0].blob;
+                captureMedia(async (audioBlob) => {
+                    const form = new FormData();
+                    form.append("file", audioBlob, "audio.wav");
+                    form.append("model", "whisper-1");
 
-                addMessage("bot", "🎧 Processing audio...");                
+                    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                        method: "POST",
+                        headers: { Authorization: "Bearer " + OPENAI_API_KEY },
+                        body: form
+                    });
 
-                // Send to Whisper
-                const form = new FormData();
-                form.append("file", blob);
-                form.append("model", "whisper-1");
+                    const data = await res.json();
+                    console.log("Transcription:", data.text);
+                });
 
-                
-
-                //const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                //    method: "POST",
-                //    headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
-                //    body: form
-                //});
-
-                //const data = await resp.json();
-                //sendToBot(data.text);
 
             } catch (e) {
                 addMessage("bot", "❌ Teams blocked mic or permission denied.");
