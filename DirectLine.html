@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Simplified final last call)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Simplified final last call1)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -149,6 +149,7 @@
         // HELPERS
         // ========================
         function base64ToBlob(base64, mime) {
+            addMessage("bot", "Inside base64toblob");
             const binary = atob(base64);
             const len = binary.length;
             const buffer = new Uint8Array(len);
@@ -169,9 +170,15 @@
                             maxMediaCount: 1
                         },
                         (err, attachments) => {
-                            if (err) return reject(err);
-                            if (!attachments || attachments.length === 0)
+                            if (err) {
+                                addMessage("bot", "Err activated");
+                                return reject(err);
+                            }
+                            if (!attachments || attachments.length === 0) {
+                                addMessage("bot", "No audio captured");
                                 return reject(new Error("No audio captured"));
+                            }
+
                             resolve(attachments[0]);
                         }
                     );
@@ -180,7 +187,7 @@
                 return base64ToBlob(result.preview, result.mimeType);
 
             } catch (err) {
-                addMessage("bot", "❌ Mic error: " + (err.message || err.errorCode));
+                addMessage("bot", "❌ Mic error: " + (err.message + err.errorCode + err.stack));
                 return null;
             }
         }
