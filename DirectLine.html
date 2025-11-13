@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <title>Vishnu Voice Copilot (POC)</title>
 
-    <!-- Teams SDK -->
-    <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
+    <!-- Teams SDK v2 -->
+    <script src="https://res.cdn.office.net/teams-js/2.15.0/js/MicrosoftTeams.min.js"></script>
 
-    <!-- Direct Line JS -->
+    <!-- Direct Line -->
     <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
 
     <style>
@@ -82,7 +82,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (POC)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Teams v2 SDK)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -92,8 +92,16 @@
     </div>
 
     <script>
-        microsoftTeams.app.initialize();
+        const { app, media } = microsoft.teams;
 
+        // Initialize Teams app
+        app.initialize().then(() => {
+            console.log("Teams SDK initialized");
+        });
+
+        // ---------------------------
+        // BOT DIRECT LINE
+        // ---------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
 
@@ -107,9 +115,6 @@
             chat.scrollTop = chat.scrollHeight;
         }
 
-        // ========================
-        // DIRECT LINE TOKEN
-        // ========================
         async function initBot() {
             const res = await fetch("https://directline.botframework.com/v3/directline/tokens/generate", {
                 method: "POST",
@@ -139,34 +144,25 @@
             }).subscribe();
         }
 
-        // ========================
-        // TEAMS MICROPHONE API
-        // ========================
+        // ---------------------------
+        // TEAMS MICROPHONE v2 API
+        // ---------------------------
         async function recordAudioTeams() {
             try {
-                // Ask Teams to pick mic
-                const mic = await microsoftTeams.media.selectMicrophone();
+                const mic = await media.selectMicrophone();
 
-                // Get audio stream from Teams
-                const media = await microsoftTeams.media.getMedia({
-                    mediaType: microsoftTeams.media.MediaType.Audio,
-                    audioProps: {
-                        maxDuration: 4000,
-                        micId: mic.microphone,
-                        formats: [microsoftTeams.media.AudioFormat.Wav]
-                    }
+                const audio = await media.captureAudio({
+                    microphoneId: mic.deviceId,
+                    maxDuration: 4000
                 });
 
                 addMessage("bot", "🎧 Processing audio...");
 
-                const blob = new Blob([media.audioChunk], { type: "audio/wav" });
+                const blob = audio.blob;
 
-                // Send to Whisper
                 const form = new FormData();
                 form.append("file", blob);
                 form.append("model", "whisper-1");
-
-                alert("Sending to Whispr API");
 
                 const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
                     method: "POST",
@@ -178,7 +174,8 @@
                 sendToBot(data.text);
 
             } catch (e) {
-                addMessage("bot", "❌ Teams blocked mic or permission denied.");
+                console.error(e);
+                addMessage("bot", "❌ Mic permission denied or not supported.");
             }
         }
 
