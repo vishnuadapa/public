@@ -2,34 +2,25 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Voice Copilot Launcher</title>
-
   <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
-
-  <style>
-    body { font-family:"Segoe UI"; display:flex; justify-content:center; align-items:center; height:100vh; }
-    button { padding:16px 32px; background:#0078d4; color:white; border-radius:8px; font-size:18px; cursor:pointer; }
-  </style>
 </head>
 
 <body>
 
-  <button id="launch">Open Voice Copilot</button>
+<button id="open">Open Voice Copilot</button>
 
-  <script>
-    (async () => {
-      await microsoftTeams.app.initialize();
+<script>
+(async () => {
+  await microsoftTeams.app.initialize();
 
-      document.getElementById("launch").onclick = () => {
-        microsoftTeams.pages.task.start({
-          title: "Voice Copilot",
-          height: "medium",
-          width: "medium",
-          url: "https://vishnuadapa.github.io/public/DirectLine.html"
-        });
-      };
-    })();
-  </script>
+  document.getElementById("open").onclick = () => {
+    microsoftTeams.dialog.url.open({
+      url: "https://vishnuadapa.github.io/public/DirectLine.html",
+      size: { width: 800, height: 600 }
+    });
+  };
+})();
+</script>
 
 </body>
 </html>
