@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Universal Mic1)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Universal Mic2)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -161,18 +161,9 @@
         // UNIVERSAL MIC LOGIC — WORKS ON ALL PLATFORMS
         // -------------------------------------------------------
         async function recordAudio() {
-            
 
-            // BROWSER MODE → use getUserMedia
-            if (!isTeams) {
-                return recordAudio_browser();
-            }
 
-            // TEAMS WEB → no mic support
-            if (host === "teams" && isTeamsWebClient()) {
-                addMessage("bot", "❌ Mic not supported in Teams Web. Please use Teams Desktop.");
-                return;
-            }
+
 
             // NEW TEAMS DESKTOP → use captureMedia
             if (media.captureMedia) {
@@ -192,7 +183,7 @@
                 return recordAudio_selectMedia();
             }
 
-            addMessage("bot", "❌ Microphone is not supported on this platform.");
+            
         }
 
 
@@ -274,6 +265,7 @@
             form.append("file", blob, "audio.wav");
             form.append("model", "whisper-1");
 
+            // Whisper transcription (always returns English by default)
             const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
                 method: "POST",
                 headers: { Authorization: "Bearer " + OPENAI_API_KEY },
@@ -282,8 +274,17 @@
 
             const data = await resp.json();
 
-            if (data.text) sendToBot(data.text);
-            else addMessage("bot", "❌ Unable to transcribe audio.");
+            if (data?.text) {
+                // 🔥 DO NOT SEND TO BOT AUTOMATICALLY
+                // Put transcription in the input box
+                document.getElementById("input").value = data.text;
+
+                // Optional Helper Message
+                addMessage("bot", "📝 Transcribed to English. Review and press Send ➤");
+            }
+            else {
+                addMessage("bot", "❌ Unable to transcribe audio.");
+            }
         }
 
 
