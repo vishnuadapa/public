@@ -2,14 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Vishnu Voice Copilot - POC</title>
+    <title>Vishnu Voice Copilot (POC)</title>
 
-    <!-- Direct Line JS SDK -->
+    <!-- Teams SDK -->
+    <script src="https://res.cdn.office.net/teams-js/v2.13.0/js/MicrosoftTeams.min.js"></script>
+
+    <!-- Direct Line JS -->
     <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
 
     <style>
         body {
-            font-family: "Segoe UI", sans-serif;
+            font-family: "Segoe UI";
             background: #f4f7fa;
             padding: 20px;
             display: flex;
@@ -17,20 +20,14 @@
             align-items: center;
         }
 
-        h2 {
-            margin-bottom: 10px;
-        }
-
         #chat {
             width: 420px;
             height: 460px;
-            background: #ffffff;
+            background: #fff;
             border-radius: 10px;
             padding: 12px;
             overflow-y: auto;
             box-shadow: 0px 3px 10px #0002;
-            display: flex;
-            flex-direction: column;
         }
 
         .msg {
@@ -65,20 +62,20 @@
             border: 1px solid #ccc;
         }
 
-        #mic, #send {
-            padding: 10px 13px;
-            border: none;
+        #mic {
+            background: #0078d4;
             color: white;
+            padding: 10px;
             border-radius: 8px;
             cursor: pointer;
         }
 
-        #mic {
-            background: #0078d4;
-        }
-
         #send {
             background: #00b294;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -86,27 +83,22 @@
 <body>
 
     <h2>🎤 Vishnu Voice Copilot (POC)</h2>
-
     <div id="chat"></div>
 
     <div id="controls">
-        <input id="input" type="text" placeholder="Type a message..." />
+        <input id="input" type="text" placeholder="Type a message...">
         <button id="mic">🎙</button>
         <button id="send">Send</button>
     </div>
 
     <script>
-        //////////////////////////////////////////////////
-        // WARNING: POC ONLY — DO NOT USE IN PRODUCTION //
-        //////////////////////////////////////////////////
+        microsoftTeams.app.initialize();
 
-        const DIRECT_LINE_SECRET = "3NK5Kiw9LlHXsHhYOStDTcePHQcRUe5P87vSXbXl0v5N518ddProJQQJ99BKAC77bzfAArohAAABAZBS5RoG.58RvmOEqvSPOfTBI0CWZJIODkXAhUKIQiPdlHdGYQBtHnmAtjqPEJQQJ99BKAC77bzfAArohAAABAZBS390A"; // ⚠️ EXPOSED
-        const OPENAI_API_KEY = "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";             // ⚠️ EXPOSED
+        const DIRECT_LINE_SECRET = "YOUR_SECRET";
+        const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
 
-        // --------------------------------------
-        //  Chat UI Helpers
-        // --------------------------------------
         const chat = document.getElementById("chat");
+
         function addMessage(sender, text) {
             const div = document.createElement("div");
             div.className = "msg " + sender;
@@ -115,101 +107,82 @@
             chat.scrollTop = chat.scrollHeight;
         }
 
-        // --------------------------------------
-        // 1️⃣ Get Direct Line Token (client-side)
-        // --------------------------------------
-        async function getDirectLineToken() {
-            const response = await fetch(
-                "https://directline.botframework.com/v3/directline/tokens/generate",
-                {
-                    method: "POST",
-                    headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
-                }
-            );
-            const json = await response.json();
-            return json.token;
-        }
-
-        let directLine;
-
+        // ========================
+        // DIRECT LINE TOKEN
+        // ========================
         async function initBot() {
-            const token = await getDirectLineToken();
-            directLine = window.WebChat.createDirectLine({ token });
+            const res = await fetch("https://directline.botframework.com/v3/directline/tokens/generate", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
+            });
 
-            // Listen for bot replies
-            directLine.activity$.subscribe(activity => {
-                if (activity.from && activity.from.id !== "user1" && activity.type === "message") {
-                    addMessage("bot", activity.text);
+            const json = await res.json();
+            const directLine = window.WebChat.createDirectLine({ token: json.token });
+
+            directLine.activity$.subscribe(a => {
+                if (a.from?.id !== "user1" && a.type === "message") {
+                    addMessage("bot", a.text);
                 }
             });
+
+            window.directLine = directLine;
         }
 
         initBot();
 
-        // --------------------------------------
-        // 2️⃣ Send message to Copilot Bot
-        // --------------------------------------
         function sendToBot(text) {
             addMessage("user", text);
-
-            directLine.postActivity({
+            window.directLine.postActivity({
                 from: { id: "user1" },
                 type: "message",
-                text: text
+                text
             }).subscribe();
         }
 
-        // --------------------------------------
-        // 3️⃣ Whisper Translation (client-side)
-        // --------------------------------------
-        async function whisperTranslate(blob) {
-            addMessage("bot", "🎧 Processing audio...");
-
-            const form = new FormData();
-            form.append("file", blob, "audio.wav");
-            form.append("model", "whisper-1");
-
-            // Use /translations → multilingual → English
-            const response = await fetch("https://api.openai.com/v1/audio/translations", {
-                method: "POST",
-                headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
-                body: form
-            });
-
-            const data = await response.json();
-            return data.text;
-        }
-
-        // --------------------------------------
-        // 4️⃣ Record Audio from Microphone
-        // --------------------------------------
-        async function recordAudio() {
+        // ========================
+        // TEAMS MICROPHONE API
+        // ========================
+        async function recordAudioTeams() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const recorder = new MediaRecorder(stream);
-                const chunks = [];
+                // Ask Teams to pick mic
+                const mic = await microsoftTeams.media.selectMicrophone();
 
-                addMessage("bot", "🎙 Listening...");
+                // Get audio stream from Teams
+                const media = await microsoftTeams.media.getMedia({
+                    mediaType: microsoftTeams.media.MediaType.Audio,
+                    audioProps: {
+                        maxDuration: 4000,
+                        micId: mic.microphone,
+                        formats: [microsoftTeams.media.AudioFormat.Wav]
+                    }
+                });
 
-                recorder.ondataavailable = e => chunks.push(e.data);
-                recorder.onstop = async () => {
-                    const blob = new Blob(chunks, { type: "audio/wav" });
-                    const text = await whisperTranslate(blob);
-                    sendToBot(text);
-                };
+                addMessage("bot", "🎧 Processing audio...");
 
-                recorder.start();
-                setTimeout(() => recorder.stop(), 4000);
+                const blob = new Blob([media.audioChunk], { type: "audio/wav" });
 
-            } catch (err) {
-                addMessage("bot", "❌ Microphone access denied.");
+                // Send to Whisper
+                const form = new FormData();
+                form.append("file", blob);
+                form.append("model", "whisper-1");
+
+                alert("Sending to Whispr API");
+
+                const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                    method: "POST",
+                    headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
+                    body: form
+                });
+
+                const data = await resp.json();
+                sendToBot(data.text);
+
+            } catch (e) {
+                addMessage("bot", "❌ Teams blocked mic or permission denied.");
             }
         }
 
-        // --------------------------------------
-        // 5️⃣ UI Buttons
-        // --------------------------------------
-        document.getElementById("mic").onclick = recordAudio;
+        document.getElementById("mic").onclick = recordAudioTeams;
 
         document.getElementById("send").onclick = () => {
             const text = document.getElementById("input").value.trim();
@@ -218,8 +191,6 @@
                 document.getElementById("input").value = "";
             }
         };
-
     </script>
-
 </body>
 </html>
