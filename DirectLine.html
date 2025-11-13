@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Vishnu Voice Copilot (Universal Mic Version)</title>
+    <title>Vishnu Voice Copilot (POC)</title>
 
-    <!-- Teams SDK v2 -->
-    <script src="https://res.cdn.office.net/teams-js/2.15.0/js/MicrosoftTeams.min.js"></script>
+    <!-- Teams SDK -->
+    <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
 
-    <!-- Direct Line -->
+    <!-- Direct Line JS -->
     <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
 
     <style>
@@ -62,26 +62,27 @@
             border: 1px solid #ccc;
         }
 
-        #mic, #send {
+        #mic {
+            background: #0078d4;
+            color: white;
             padding: 10px;
             border-radius: 8px;
             cursor: pointer;
-            color: white;
-        }
-
-        #mic {
-            background: #0078d4;
         }
 
         #send {
             background: #00b294;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
         }
     </style>
 </head>
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Universal Mic3)</h2>
+    <h2>🎤 Vishnu Voice Copilot (1)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -91,49 +92,30 @@
     </div>
 
     <script>
+        microsoftTeams.app.initialize();
 
-        const { app, media } = microsoftTeams;
-
-        // -------------------------------------------------------
-        // INITIALIZE TEAMS
-        // -------------------------------------------------------
-        async function initTeams() {
-            try {
-                await app.initialize();
-                await app.notifyAppLoaded();
-                await app.notifySuccess();
-                console.log("Teams SDK initialized");
-            } catch {
-                console.log("Not inside Teams → Browser mode");
-            }
-        }
-        initTeams();
-
-
-        // -------------------------------------------------------
-        // DIRECT LINE CONFIG
-        // -------------------------------------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
 
         const chat = document.getElementById("chat");
 
         function addMessage(sender, text) {
-            const d = document.createElement("div");
-            d.className = "msg " + sender;
-            d.innerText = text;
-            chat.appendChild(d);
+            const div = document.createElement("div");
+            div.className = "msg " + sender;
+            div.innerText = text;
+            chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
 
+        // ========================
+        // DIRECT LINE TOKEN
+        // ========================
         async function initBot() {
-            const res = await fetch(
-                "https://directline.botframework.com/v3/directline/tokens/generate",
-                {
-                    method: "POST",
-                    headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
-                }
-            );
+            const res = await fetch("https://directline.botframework.com/v3/directline/tokens/generate", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
+            });
+
             const json = await res.json();
             const directLine = window.WebChat.createDirectLine({ token: json.token });
 
@@ -145,6 +127,7 @@
 
             window.directLine = directLine;
         }
+
         initBot();
 
         function sendToBot(text) {
@@ -156,142 +139,40 @@
             }).subscribe();
         }
 
-
-        // -------------------------------------------------------
-        // UNIVERSAL MIC LOGIC — WORKS ON ALL PLATFORMS
-        // -------------------------------------------------------
-        async function recordAudio() {
-
-
-
-
-            // NEW TEAMS DESKTOP → use captureMedia
-            if (media.captureMedia) {
-                try {
-                    console.log("New Teams Desktop → captureMedia()");
-                    addMessage("bot", "New Teams Desktop Version → capturingMedia()");
-                    return recordAudio_captureMedia();
-                } catch (e) {
-                    console.error("captureMedia failed", e);
-                }
-            }
-
-            // CLASSIC TEAMS → use selectMedia
-            if (media.selectMedia) {
-                console.log("Classic Teams → selectMedia()");
-                addMessage("bot", "Classic Teams → selectingMedia()");
-                return recordAudio_selectMedia();
-            }
-
-            
-        }
-
-
-        // Detect if current window is Teams Web
-        function isTeamsWebClient() {
-            return navigator.userAgent.includes("Teams/") && navigator.userAgent.includes("Electron") === false;
-        }
-
-
-        // -------------------------------------------------------
-        // 1️⃣ BROWSER FallBack (Works outside Teams)
-        // -------------------------------------------------------
-        async function recordAudio_browser() {
+        // ========================
+        // TEAMS MICROPHONE API
+        // ========================
+        async function recordAudioTeams() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const recorder = new MediaRecorder(stream);
-                let chunks = [];
+                // Ask Teams to pick mic
 
-                recorder.ondataavailable = e => chunks.push(e.data);
-                recorder.onstop = () => {
-                    const blob = new Blob(chunks, { type: "audio/webm" });
-                    sendToWhisper(blob);
-                };
-
-                recorder.start();
-                setTimeout(() => recorder.stop(), 4000);
-            } catch (e) {
-                addMessage("bot", "❌ Browser mic blocked.");
-            }
-        }
-
-
-        // -------------------------------------------------------
-        // 2️⃣ CLASSIC TEAMS DESKTOP → selectMedia()
-        // -------------------------------------------------------
-        function recordAudio_selectMedia() {
-            media.selectMedia(
-                { mediaType: media.MediaType.Audio, maxMediaCount: 1 },
-                (err, items) => {
-                    if (err) {
-                        addMessage("bot", "❌ Mic Error: " + err.errorCode + " - " + err.message);
-                        return;
-                    }
-
-                    const audio = items[0];
-                    const base64 = audio.preview;
-
-                    const binary = atob(base64);
-                    const array = new Uint8Array(binary.length);
-                    for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-
-                    sendToWhisper(new Blob([array], { type: audio.mimeType }));
-                }
-            );
-        }
-
-
-        // -------------------------------------------------------
-        // 3️⃣ NEW TEAMS DESKTOP → captureMedia()
-        // -------------------------------------------------------
-        async function recordAudio_captureMedia() {
-            try {
                 const result = await media.captureMedia({ audio: true, maxDuration: 5000 });
                 const blob = result.audio[0].blob;
-                sendToWhisper(blob);
+
+                addMessage("bot", "🎧 Processing audio...");                
+
+                // Send to Whisper
+                const form = new FormData();
+                form.append("file", blob);
+                form.append("model", "whisper-1");
+
+                
+
+                //const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                //    method: "POST",
+                //    headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
+                //    body: form
+                //});
+
+                //const data = await resp.json();
+                //sendToBot(data.text);
+
             } catch (e) {
-                addMessage("bot", "❌ captureMedia error: " + e.message);
+                addMessage("bot", "❌ Teams blocked mic or permission denied.");
             }
         }
 
-
-        // -------------------------------------------------------
-        // WHISPER TRANSCRIPTION
-        // -------------------------------------------------------
-        async function sendToWhisper(blob) {
-            addMessage("bot", "🎧 Processing audio...");
-
-            const form = new FormData();
-            form.append("file", blob, "audio.wav");
-            form.append("model", "whisper-1");
-
-            // Whisper transcription (always returns English by default)
-            const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                method: "POST",
-                headers: { Authorization: "Bearer " + OPENAI_API_KEY },
-                body: form
-            });
-
-            const data = await resp.json();
-
-            if (data?.text) {
-                // 🔥 DO NOT SEND TO BOT AUTOMATICALLY
-                // Put transcription in the input box
-                document.getElementById("input").value = data.text;
-
-                // Optional Helper Message
-                addMessage("bot", "📝 Transcribed to English. Review and press Send ➤");
-            }
-            else {
-                addMessage("bot", "❌ Unable to transcribe audio.");
-            }
-        }
-
-
-        // -------------------------------------------------------
-        // BUTTON HANDLERS
-        // -------------------------------------------------------
-        document.getElementById("mic").onclick = recordAudio;
+        document.getElementById("mic").onclick = recordAudioTeams;
 
         document.getElementById("send").onclick = () => {
             const text = document.getElementById("input").value.trim();
@@ -300,7 +181,6 @@
                 document.getElementById("input").value = "";
             }
         };
-
     </script>
 </body>
 </html>
