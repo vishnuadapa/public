@@ -14,7 +14,7 @@
   await microsoftTeams.app.initialize();
 
   document.getElementById("open").onclick = () => {
-    microsoftTeams.dialog.url.open({
+    microsoftTeams.dialog.open({
       url: "https://vishnuadapa.github.io/public/DirectLine.html",
       size: { width: 800, height: 600 }
     });
