@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Simplified)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Simplified1)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -162,6 +162,7 @@
         async function captureAudioBlob() {
             try {
                 const result = await new Promise((resolve, reject) => {
+                    addMessage("bot", "about to call select media");
                     microsoftTeams.media.selectMedia(
                         {
                             mediaType: microsoftTeams.media.MediaType.Audio,
