@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Simplified1)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Simplified25)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -159,7 +159,7 @@
         // ========================
         // CLEAN async/await microphone capture
         // ========================
-        async function captureAudioBlob() {
+        async function captureAudioBlob_Old() {
             try {
                 const result = await new Promise((resolve, reject) => {
                     addMessage("bot", "about to call select media");
@@ -181,6 +181,22 @@
 
             } catch (err) {
                 addMessage("bot", "❌ Mic error: " + (err.message || err.errorCode));
+                return null;
+            }
+        }
+
+        async function captureAudioBlob() {
+            try {
+                const result = await microsoftTeams.media.captureMedia({
+                    audio: true,
+                    maxDuration: 5000
+                });
+                addMessage("bot", "ALl is well till audio extraction dude");
+
+                return result.audio[0].blob;
+
+            } catch (err) {
+                addMessage("bot", "❌ captureMedia error: " + err.message);
                 return null;
             }
         }
