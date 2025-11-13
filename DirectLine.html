@@ -81,7 +81,7 @@
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (Universal Mic)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Universal Mic1)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -161,15 +161,7 @@
         // UNIVERSAL MIC LOGIC — WORKS ON ALL PLATFORMS
         // -------------------------------------------------------
         async function recordAudio() {
-            let ctx;
-
-            try { ctx = await app.getContext(); }
-            catch { ctx = null; }
-
-            const isTeams = !!ctx;
-            const host = ctx?.app?.host?.name?.toLowerCase() || "browser";
-
-            console.log("Host:", host);
+            
 
             // BROWSER MODE → use getUserMedia
             if (!isTeams) {
