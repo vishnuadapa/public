@@ -91,37 +91,24 @@
     </div>
 
     <script>
-        const { app, media } = microsoftTeams;
+        const { app } = microsoftTeams;
 
-        // -----------------------------------
-        // INITIALIZE TEAMS APP WITH CAPABILITIES
-        // -----------------------------------
-        async function initTeams() {
-            await app.initialize();
-
-            await app.notifyAppLoaded();
-            await app.notifySuccess();
-
-            // Request microphone capability
-            await app.registerCapabilities({
-                media: {
-                    video: false,
-                    audio: true,
-                    image: false
-                }
-            });
-
-            console.log("Teams SDK ready with microphone capability");
-        }
-
+        // -------------------------
+        // Initialize Teams SDK
+        --------------------------
+            async function initTeams() {
+                await app.initialize();
+                await app.notifyAppLoaded();
+                await app.notifySuccess();
+                console.log("Teams SDK initialized");
+            }
         initTeams();
 
-        // -----------------------------------
+        // -------------------------
         // DIRECT LINE BOT CONFIG
-        // -----------------------------------
+        --------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
-
         const chat = document.getElementById("chat");
 
         function addMessage(sender, text) {
@@ -157,69 +144,62 @@
 
         function sendToBot(text) {
             addMessage("user", text);
-            window.directLine
-                .postActivity({
-                    from: { id: "user1" },
-                    type: "message",
-                    text
-                })
-                .subscribe();
+            window.directLine.postActivity({
+                from: { id: "user1" },
+                type: "message",
+                text
+            }).subscribe();
         }
 
-        // -----------------------------------
-        // MICROPHONE RECORDING (Teams v2 logic)
-        // -----------------------------------
-        async function recordAudioTeams() {
-            try {
-                // Ask user to choose microphone
-                const micResult = await media.selectMicrophone();
-                const deviceId = micResult?.devices?.[0]?.id;
+        // -------------------------
+        // PURE JS AUDIO CAPTURE (navigator.getUserMedia)
+        --------------------------
+            async function recordAudio() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                if (!deviceId) {
-                    addMessage("bot", "❌ No microphone selected.");
-                    return;
+                    const mediaRecorder = new MediaRecorder(stream);
+                    let chunks = [];
+
+                    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(chunks, { type: "audio/webm" });
+
+                        addMessage("bot", "🎧 Processing audio...");
+
+                        // Send to Whisper
+                        const form = new FormData();
+                        form.append("file", blob, "audio.webm");
+                        form.append("model", "whisper-1");
+
+                        const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                            method: "POST",
+                            headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
+                            body: form
+                        });
+
+                        const data = await resp.json();
+
+                        if (data.text) sendToBot(data.text);
+                        else addMessage("bot", "❌ Could not transcribe audio.");
+                    };
+
+                    mediaRecorder.start();
+
+                    // Stop after 4 seconds
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                        stream.getTracks().forEach(t => t.stop());
+                    }, 4000);
+
+                } catch (err) {
+                    console.error(err);
+                    addMessage("bot", "❌ Microphone denied or unavailable.");
                 }
-
-                // Capture audio (Teams sample uses captureMedia)
-                const capture = await media.captureMedia({
-                    audio: true,
-                    maxDuration: 5000
-                });
-
-                const blob = capture?.audio?.[0]?.blob;
-                if (!blob) {
-                    addMessage("bot", "❌ Failed to record audio.");
-                    return;
-                }
-
-                addMessage("bot", "🎧 Processing audio...");
-
-                // Whisper transcription
-                const form = new FormData();
-                form.append("file", blob, "audio.wav");
-                form.append("model", "whisper-1");
-
-                const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: { "Authorization": "Bearer " + OPENAI_API_KEY },
-                    body: form
-                });
-
-                const data = await resp.json();
-                if (!data.text) {
-                    addMessage("bot", "❌ Unable to transcribe audio.");
-                    return;
-                }
-
-                sendToBot(data.text);
-
-            } catch (err) {
-                console.error(err);
-                addMessage("bot", "❌ Mic permission denied or not supported.");
             }
-        }
 
-        document.getElementById("mic").onclick = recordAudioTeams;
+        document.getElementById("mic").onclick = recordAudio;
 
         document.getElementById("send").onclick = () => {
             const text = document.getElementById("input").value.trim();
