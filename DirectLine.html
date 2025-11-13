@@ -62,20 +62,19 @@
             border: 1px solid #ccc;
         }
 
-        #mic {
-            background: #0078d4;
-            color: white;
+        #mic, #send {
             padding: 10px;
             border-radius: 8px;
             cursor: pointer;
+            color: white;
+        }
+
+        #mic {
+            background: #0078d4;
         }
 
         #send {
             background: #00b294;
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
         }
     </style>
 </head>
@@ -94,14 +93,32 @@
     <script>
         const { app, media } = microsoftTeams;
 
-        // Initialize Teams app
-        app.initialize().then(() => {
-            console.log("Teams SDK initialized");
-        });
+        // -----------------------------------
+        // INITIALIZE TEAMS APP WITH CAPABILITIES
+        // -----------------------------------
+        async function initTeams() {
+            await app.initialize();
 
-        // ---------------------------
-        // BOT DIRECT LINE
-        // ---------------------------
+            await app.notifyAppLoaded();
+            await app.notifySuccess();
+
+            // Request microphone capability
+            await app.registerCapabilities({
+                media: {
+                    video: false,
+                    audio: true,
+                    image: false
+                }
+            });
+
+            console.log("Teams SDK ready with microphone capability");
+        }
+
+        initTeams();
+
+        // -----------------------------------
+        // DIRECT LINE BOT CONFIG
+        // -----------------------------------
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
 
@@ -116,10 +133,13 @@
         }
 
         async function initBot() {
-            const res = await fetch("https://directline.botframework.com/v3/directline/tokens/generate", {
-                method: "POST",
-                headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
-            });
+            const res = await fetch(
+                "https://directline.botframework.com/v3/directline/tokens/generate",
+                {
+                    method: "POST",
+                    headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
+                }
+            );
 
             const json = await res.json();
             const directLine = window.WebChat.createDirectLine({ token: json.token });
@@ -137,31 +157,46 @@
 
         function sendToBot(text) {
             addMessage("user", text);
-            window.directLine.postActivity({
-                from: { id: "user1" },
-                type: "message",
-                text
-            }).subscribe();
+            window.directLine
+                .postActivity({
+                    from: { id: "user1" },
+                    type: "message",
+                    text
+                })
+                .subscribe();
         }
 
-        // ---------------------------
-        // TEAMS MICROPHONE v2 API
-        // ---------------------------
+        // -----------------------------------
+        // MICROPHONE RECORDING (Teams v2 logic)
+        // -----------------------------------
         async function recordAudioTeams() {
             try {
-                const mic = await media.selectMicrophone();
+                // Ask user to choose microphone
+                const micResult = await media.selectMicrophone();
+                const deviceId = micResult?.devices?.[0]?.id;
 
-                const audio = await media.captureAudio({
-                    microphoneId: mic.deviceId,
-                    maxDuration: 4000
+                if (!deviceId) {
+                    addMessage("bot", "❌ No microphone selected.");
+                    return;
+                }
+
+                // Capture audio (Teams sample uses captureMedia)
+                const capture = await media.captureMedia({
+                    audio: true,
+                    maxDuration: 5000
                 });
+
+                const blob = capture?.audio?.[0]?.blob;
+                if (!blob) {
+                    addMessage("bot", "❌ Failed to record audio.");
+                    return;
+                }
 
                 addMessage("bot", "🎧 Processing audio...");
 
-                const blob = audio.blob;
-
+                // Whisper transcription
                 const form = new FormData();
-                form.append("file", blob);
+                form.append("file", blob, "audio.wav");
                 form.append("model", "whisper-1");
 
                 const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
@@ -171,10 +206,15 @@
                 });
 
                 const data = await resp.json();
+                if (!data.text) {
+                    addMessage("bot", "❌ Unable to transcribe audio.");
+                    return;
+                }
+
                 sendToBot(data.text);
 
-            } catch (e) {
-                alert(e);
+            } catch (err) {
+                console.error(err);
                 addMessage("bot", "❌ Mic permission denied or not supported.");
             }
         }
