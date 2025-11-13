@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Vishnu Voice Copilot (POC)</title>
+    <title>Vishnu Voice Copilot (Simplified Version)</title>
 
     <!-- Teams SDK -->
     <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
 
-    <!-- Direct Line JS -->
+    <!-- Direct Line -->
     <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
 
     <style>
@@ -62,27 +62,26 @@
             border: 1px solid #ccc;
         }
 
-        #mic {
-            background: #0078d4;
-            color: white;
+        #mic, #send {
             padding: 10px;
             border-radius: 8px;
             cursor: pointer;
+            color: white;
+        }
+
+        #mic {
+            background: #0078d4;
         }
 
         #send {
             background: #00b294;
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
         }
     </style>
 </head>
 
 <body>
 
-    <h2>🎤 Vishnu Voice Copilot (2)</h2>
+    <h2>🎤 Vishnu Voice Copilot (Simplified)</h2>
     <div id="chat"></div>
 
     <div id="controls">
@@ -94,6 +93,9 @@
     <script>
         microsoftTeams.app.initialize();
 
+        // ========================
+        // CONFIG
+        // ========================
         const DIRECT_LINE_SECRET = "YOUR_SECRET";
         const OPENAI_API_KEY = "YOUR_OPENAI_KEY";
 
@@ -108,13 +110,16 @@
         }
 
         // ========================
-        // DIRECT LINE TOKEN
+        // DIRECT LINE INIT
         // ========================
         async function initBot() {
-            const res = await fetch("https://directline.botframework.com/v3/directline/tokens/generate", {
-                method: "POST",
-                headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
-            });
+            const res = await fetch(
+                "https://directline.botframework.com/v3/directline/tokens/generate",
+                {
+                    method: "POST",
+                    headers: { "Authorization": "Bearer " + DIRECT_LINE_SECRET }
+                }
+            );
 
             const json = await res.json();
             const directLine = window.WebChat.createDirectLine({ token: json.token });
@@ -127,94 +132,88 @@
 
             window.directLine = directLine;
         }
-
         initBot();
 
         function sendToBot(text) {
             addMessage("user", text);
-            window.directLine.postActivity({
-                from: { id: "user1" },
-                type: "message",
-                text
-            }).subscribe();
+            window.directLine
+                .postActivity({
+                    from: { id: "user1" },
+                    type: "message",
+                    text
+                })
+                .subscribe();
         }
 
-        function captureMedia(callback) {
-            microsoftTeams.media.selectMedia(
-                {
-                    mediaType: microsoftTeams.media.MediaType.Audio,
-                    maxMediaCount: 1
-                },
-                (error, attachments) => {
-
-                    if (error) {
-                        alert("ErrorCode: " + error.errorCode + " " + (error.message || ""));
-                        return;
-                    }
-
-                    if (!attachments || attachments.length === 0) {
-                        alert("No audio captured.");
-                        return;
-                    }
-
-                    // First audio result
-                    const audio = attachments[0];
-
-                    // Base64 string returned by Teams
-                    const base64 = audio.preview;
-                    const mimeType = audio.mimeType;
-
-                    // Convert base64 → Blob
-                    const blob = base64ToBlob(base64, mimeType);
-
-                    // Return blob via callback
-                    if (callback) callback(blob);
-                }
-            );
-        }
-
-        // Helper: Convert base64 -> Blob
+        // ========================
+        // HELPERS
+        // ========================
         function base64ToBlob(base64, mime) {
             const binary = atob(base64);
             const len = binary.length;
             const buffer = new Uint8Array(len);
-
-            for (let i = 0; i < len; i++) {
-                buffer[i] = binary.charCodeAt(i);
-            }
-
+            for (let i = 0; i < len; i++) buffer[i] = binary.charCodeAt(i);
             return new Blob([buffer], { type: mime });
         }
 
-
         // ========================
-        // TEAMS MICROPHONE API
+        // CLEAN async/await microphone capture
         // ========================
-        async function recordAudioTeams() {
+        async function captureAudioBlob() {
             try {
-                // Ask Teams to pick mic
-
-                captureMedia(async (audioBlob) => {
-                    const form = new FormData();
-                    form.append("file", audioBlob, "audio.wav");
-                    form.append("model", "whisper-1");
-
-                    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-                        method: "POST",
-                        headers: { Authorization: "Bearer " + OPENAI_API_KEY },
-                        body: form
-                    });
-
-                    const data = await res.json();
-                    console.log("Transcription:", data.text);
+                const result = await new Promise((resolve, reject) => {
+                    microsoftTeams.media.selectMedia(
+                        {
+                            mediaType: microsoftTeams.media.MediaType.Audio,
+                            maxMediaCount: 1
+                        },
+                        (err, attachments) => {
+                            if (err) return reject(err);
+                            if (!attachments || attachments.length === 0)
+                                return reject(new Error("No audio captured"));
+                            resolve(attachments[0]);
+                        }
+                    );
                 });
 
+                return base64ToBlob(result.preview, result.mimeType);
 
-            } catch (e) {
-                addMessage("bot", "❌ Teams blocked mic or permission denied.");
+            } catch (err) {
+                addMessage("bot", "❌ Mic error: " + (err.message || err.errorCode));
+                return null;
             }
         }
 
+        // ========================
+        // MAIN MIC FUNCTION
+        // ========================
+        async function recordAudioTeams() {
+            const blob = await captureAudioBlob();
+            if (!blob) return;
+
+            addMessage("bot", "🎧 Processing audio...");
+
+            const form = new FormData();
+            form.append("file", blob, "audio.wav");
+            form.append("model", "whisper-1");
+
+            const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+                method: "POST",
+                headers: { Authorization: "Bearer " + OPENAI_API_KEY },
+                body: form
+            });
+
+            const data = await res.json();
+
+            if (data.text) {
+                document.getElementById("input").value = data.text;
+                addMessage("bot", "📝 Transcribed. Review & press Send.");
+            }
+        }
+
+        // ========================
+        // EVENTS
+        // ========================
         document.getElementById("mic").onclick = recordAudioTeams;
 
         document.getElementById("send").onclick = () => {
@@ -225,5 +224,6 @@
             }
         };
     </script>
+
 </body>
 </html>
